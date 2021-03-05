@@ -22,6 +22,14 @@ public final class ScreenImage extends BufferedImage {
 		imageBuffer[getIndex(x, y)] = getHex(r, g, b);
 	}
 	
+	public void setPixel(int x, int y, int hex) {
+		imageBuffer[getIndex(x,y)] = hex;
+	}
+	
+	public void setPixel(int index, int hex) {
+		imageBuffer[index] = hex;
+	}
+	
 	public void fill(int r, int g, int b) {
 		Arrays.fill(imageBuffer, getHex(r,g,b));
 	}
@@ -34,7 +42,7 @@ public final class ScreenImage extends BufferedImage {
 		return imageBuffer.length;
 	}
 	
-	public int getHex(int r, int g, int b) {
+	public static int getHex(int r, int g, int b) {
 		return r << 16 | g << 8 | b;
 	}
 

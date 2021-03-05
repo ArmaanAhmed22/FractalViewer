@@ -17,6 +17,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Function;
 
 import javax.print.attribute.standard.MediaName;
 import javax.swing.AbstractButton;
@@ -28,8 +29,11 @@ import mandelbrot.events.handlers.MouseEventHandler;
 import mandelbrot.math.ComplexNumber;
 import mandelbrot.math.fractal.Fractal;
 import mandelbrot.math.fractal.Fractal.FractalID;
+import mandelbrot.math.fractal.Fractal.FractalInfo;
+import mandelbrot.math.fractal.FractalDisplay;
 import mandelbrot.math.fractal.FractalInterpolate;
 import mandelbrot.math.fractal.FractalInterpolate.FractalInterpolateType;
+import mandelbrot.math.fractal.FractalRenderer;
 
 public class ProgramMain {
 	
@@ -45,7 +49,10 @@ public class ProgramMain {
 
 final class FractalProgram extends Program {
 	
-	FractalInterpolate mandelbrot;
+	private FractalRenderer fracRender;
+	private Fractal mandelbrot;
+	private Function<FractalInfo,Integer> colorer;
+	private FractalDisplay sideBar;
 	
 	private final ThreadPoolExecutor threadPool;
 	private final int THREAD_NUM = 10;
@@ -96,6 +103,10 @@ final class FractalProgram extends Program {
 			} else if (charKey == 40) {//'down'
 				mandelbrot.addIterations(-5);
 			}
+			
+			else if (charKey == 81) {//'q'
+				System.exit(0);
+			}
 			else { //39 RIGHT //37 LEFT
 				System.out.println(charKey);
 			}
@@ -130,7 +141,32 @@ final class FractalProgram extends Program {
 			}
 		}).bind(Event.EventType.SCREEN_RESIZE, (Event e) -> adjustSize());
 		
-		mandelbrot = new FractalInterpolate(5, 5, Fractal.getFractal(FractalID.MANDELBROT, 5, 5), Fractal.getFractal(FractalID.BURNING_SHIP, 5, 5), FractalInterpolateType.ADDITIVE);
+		sideBar = new FractalDisplay();
+		mandelbrot = Fractal.getFractal(FractalID.BURNING_SHIP, 5, 10);
+		fracRender = new FractalRenderer(getScreenImage(),getSize().width,getSize().height);
+		colorer = (FractalInfo info) -> {
+			if (info==null)
+				return 0;
+			else {
+				var abs = info.z.abs();
+				//var norm = (zn1.abs()-UPPER_BOUND)/(UPPER_BOUND_SQUARED-UPPER_BOUND);
+				//var norm = ((zn.absSquared()-UPPER_BOUND_SQUARED)/(UPPER_BOUND_SQUARED*UPPER_BOUND_SQUARED))+getTime()/5000000d;
+				var log1 = (Math.log10(abs)/Math.log10(mandelbrot.getRadiusDiv()));
+				var norm = Math.log10(log1)/Math.log10(2);
+				
+				//System.out.println(log1);
+				
+				var rNorm = Math.sqrt((Math.sin(info.iteration-norm)+1));
+				var gNorm = Math.sqrt((Math.sin(0.3*(info.iteration-norm))+1));
+				var bNorm = Math.sqrt((Math.sin(0.2*(info.iteration-norm))+1));
+				
+				
+				int r = (int) (rNorm*255);
+				int g = (int) (gNorm*255);
+				int b = (int) (bNorm*255);
+				return ScreenImage.getHex(r, g, b);
+			}
+		};
 		
 		upperLeft = new ComplexNumber(-5, 5);
 		bottomRight = new ComplexNumber(5, -5);
@@ -151,8 +187,15 @@ final class FractalProgram extends Program {
 			temp[i] = () -> {
 				var thisStart = (finalI+0d) / THREAD_NUM * getArea();
 				var thisEnd = (finalI+1d) / THREAD_NUM * getArea();
+				
+				double xDistance = bottomRight.getReal() - upperLeft.getReal();
+				double yDistance = upperLeft.getImaginary() - bottomRight.getImaginary(); 
+				
 				for (var j = (int) thisStart; j < thisEnd; j++) {
-					setColor(getComplexNumber(j),j);
+					var curReal = upperLeft.getReal()+((j % getSize().width)  / (getSize().width - 1d))*xDistance;
+					var curImaginary = upperLeft.getImaginary() - ((j / getSize().width) / (getSize().height - 1d))*yDistance;
+					fracRender.renderSingleNumber(new ComplexNumber(curReal,curImaginary), mandelbrot, colorer, j);
+					//fracRender.renderSingleNumber(bottomRight, mandelbrot, colorer, THREAD_NUM);
 					
 				}
 				latch.countDown();
@@ -160,21 +203,10 @@ final class FractalProgram extends Program {
 		}
 		return Collections.unmodifiableList(Arrays.asList(temp));
 	}
-	
-	private ComplexNumber getComplexNumber(int index) {
-		double xDif = bottomRight.getReal() - upperLeft.getReal();
-		double yDif = -(upperLeft.getImaginary() - bottomRight.getImaginary());
-		double u = (index % getSize().width) / (getSize().width-1d);
-		double v = (index / getSize().width) / (getSize().height-1d);
-		double resultX = u*xDif+upperLeft.getReal();
-		double resultY = v*yDif+upperLeft.getImaginary();
-		return new ComplexNumber(resultX, resultY);
-	}
 
 	@Override
 	public void onUpdate() {
 		ehm.checkAndPerformAction();
-		((FractalInterpolate)mandelbrot).incrementS(0.0001);
 		
 	}
 
@@ -192,40 +224,11 @@ final class FractalProgram extends Program {
 		latch = new CountDownLatch(THREAD_NUM);
 		//g.setColor(Color.white);
 		g.setColor(Color.black);
+		
 		g.drawImage(getScreenImage(), 0, 0, null);
+		sideBar.draw(g);
 		
 		g.drawString("Iterations: "+mandelbrot.getIterations(), 30, 30);
-	}
-	
-	
-	
-	
-	public void setColor(ComplexNumber c,int index) {
-		
-		//var zn = new ComplexNumber(0, 0);
-		var info = mandelbrot.inSet(c);
-		if (info==null)
-			getScreenImage().setPixel(index, 0, 0, 0);
-		else {
-			var abs = info.z.abs();
-			//var norm = (zn1.abs()-UPPER_BOUND)/(UPPER_BOUND_SQUARED-UPPER_BOUND);
-			//var norm = ((zn.absSquared()-UPPER_BOUND_SQUARED)/(UPPER_BOUND_SQUARED*UPPER_BOUND_SQUARED))+getTime()/5000000d;
-			var log1 = (Math.log10(abs)/Math.log10(mandelbrot.getRadiusDiv()));
-			var norm = Math.log10(log1)/Math.log10(2);
-			
-			//System.out.println(log1);
-			
-			var rNorm = Math.sqrt((Math.sin(info.iteration-norm)+1));
-			var gNorm = Math.sqrt((Math.sin(0.3*(info.iteration-norm))+1));
-			var bNorm = Math.sqrt((Math.sin(0.2*(info.iteration-norm))+1));
-			
-			
-			int r = (int) (rNorm*255);
-			int g = (int) (gNorm*255);
-			int b = (int) (bNorm*255);
-			getScreenImage().setPixel(index, r, g, b);
-		}
-		
 	}
 	
 }
