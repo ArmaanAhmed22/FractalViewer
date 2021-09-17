@@ -22,7 +22,8 @@ public abstract class EventHandler {
 						"InputMethodListener",
 						"KeyListener",
 						"MouseListener",
-						"MouseMotionListener"
+						"MouseMotionListener",
+						"WindowListener"
 						}
 				
 				

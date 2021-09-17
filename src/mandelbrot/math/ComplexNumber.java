@@ -38,6 +38,7 @@ public class ComplexNumber {
 		return new ComplexNumber(newReal, newImaginary);
 	}
 	
+	
 	public ComplexNumber setToSquare() {
 		real = real*real - imaginary*imaginary;
 		imaginary = 2*real*imaginary;
@@ -97,6 +98,13 @@ public class ComplexNumber {
 	public ComplexNumber setScale(double scaler) {
 		real*=scaler;
 		imaginary*=scaler;
+		return this;
+	}
+	
+	public ComplexNumber setCos() {
+		var temp = Math.sin(real)*Math.cosh(imaginary);
+		imaginary = Math.cos(real) * Math.sinh(imaginary);
+		real = temp;
 		return this;
 	}
 	

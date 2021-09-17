@@ -2,8 +2,12 @@ package mandelbrot.program;
 
 import java.awt.Color;
 
+
 import java.awt.Dimension;
 import java.awt.Graphics;
+import java.awt.desktop.QuitStrategy;
+import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,13 +23,16 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 
+import javax.imageio.ImageIO;
 import javax.print.attribute.standard.MediaName;
 import javax.swing.AbstractButton;
+import javax.swing.JFrame;
 
 import mandelbrot.events.Event;
 import mandelbrot.events.handlers.ComponentEventHandler;
 import mandelbrot.events.handlers.KeyBoardEventHandler;
 import mandelbrot.events.handlers.MouseEventHandler;
+import mandelbrot.events.handlers.WindowEventHandler;
 import mandelbrot.math.ComplexNumber;
 import mandelbrot.math.fractal.Fractal;
 import mandelbrot.math.fractal.Fractal.FractalID;
@@ -38,9 +45,12 @@ import mandelbrot.math.fractal.FractalRenderer;
 public class ProgramMain {
 	
 	public static void main(String[] args) {
+		
+		System.setProperty("apple.eawt.quitStrategy", QuitStrategy.CLOSE_ALL_WINDOWS.name());
+		
 		final var fps = 30;
 		final var ups = 30;
-		var program = new FractalProgram(new Dimension(500, 500),fps,ups);
+		var program = new FractalProgram(new Dimension(512, 512),fps,ups);
 		
 		program.start();
 	}
@@ -50,7 +60,7 @@ public class ProgramMain {
 final class FractalProgram extends Program {
 	
 	private FractalRenderer fracRender;
-	private Fractal mandelbrot;
+	private FractalInterpolate mandelbrot;
 	private Function<FractalInfo,Integer> colorer;
 	private FractalDisplay sideBar;
 	
@@ -63,6 +73,8 @@ final class FractalProgram extends Program {
 	private ComplexNumber bottomRight;
 	private final double dragSpeed = 100; //Higher means slower
 	private double zoom = 1;
+	
+	private boolean gamePaused;
 	
 	private final double getDrag() {
 		return dragSpeed*zoom;
@@ -87,6 +99,7 @@ final class FractalProgram extends Program {
 		addEventHandler(KeyBoardEventHandler.class);
 		addEventHandler(MouseEventHandler.class);
 		addEventHandler(ComponentEventHandler.class);
+		addEventHandler(WindowEventHandler.class);
 		ehm.bind(Event.EventType.KEY_PRESS, (Event e) -> {
 			var charKey = (int)e.getAssociatedData().getInfo();
 			if (charKey == 90) { // 'z'
@@ -104,8 +117,24 @@ final class FractalProgram extends Program {
 				mandelbrot.addIterations(-5);
 			}
 			
+			else if (charKey == 80) {// 'p'
+				gamePaused =! gamePaused;
+			}
+			
 			else if (charKey == 81) {//'q'
+				try {
+					ImageIO.write(getScreenImage(), "png", new File("final.png"));
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
 				System.exit(0);
+			}
+			
+			else if (charKey == 39) { //RIGHT
+				
+			} else if (charKey == 37) { //LEFT
+				
 			}
 			else { //39 RIGHT //37 LEFT
 				System.out.println(charKey);
@@ -142,9 +171,11 @@ final class FractalProgram extends Program {
 		}).bind(Event.EventType.SCREEN_RESIZE, (Event e) -> adjustSize());
 		
 		sideBar = new FractalDisplay();
-		mandelbrot = Fractal.getFractal(FractalID.BURNING_SHIP, 5, 10);
+		sideBar.select(FractalID.MANDELBROT.toString());
+		mandelbrot = new FractalInterpolate(5,2,Fractal.getFractal(FractalID.TEST, 5, 4),Fractal.getFractal(FractalID.MANDELBROT, 5, 4),FractalInterpolateType.ADDITIVE);
 		fracRender = new FractalRenderer(getScreenImage(),getSize().width,getSize().height);
-		colorer = (FractalInfo info) -> {
+		/*colorer = (FractalInfo info) -> {
+			
 			if (info==null)
 				return 0;
 			else {
@@ -166,10 +197,21 @@ final class FractalProgram extends Program {
 				int b = (int) (bNorm*255);
 				return ScreenImage.getHex(r, g, b);
 			}
+		};*/
+		
+		colorer = (FractalInfo inf) -> {
+			if (inf==null) {
+				return 0;
+			} else {
+				double nsmooth = (inf.iteration + 1 - Math.log(Math.log(inf.z.abs()))/Math.log(2))/inf.totalIterations;
+				
+				return ScreenImage.getHex((int)((0.95+10*nsmooth)*255), 151, (int)(255*nsmooth));
+			}
 		};
 		
 		upperLeft = new ComplexNumber(-5, 5);
 		bottomRight = new ComplexNumber(5, -5);
+		
 		
 		latch = new CountDownLatch(THREAD_NUM);
 		
@@ -204,9 +246,12 @@ final class FractalProgram extends Program {
 		return Collections.unmodifiableList(Arrays.asList(temp));
 	}
 
+
 	@Override
 	public void onUpdate() {
 		ehm.checkAndPerformAction();
+		if (!gamePaused)
+			mandelbrot.transitionUpdateS();
 		
 	}
 
@@ -228,7 +273,7 @@ final class FractalProgram extends Program {
 		g.drawImage(getScreenImage(), 0, 0, null);
 		sideBar.draw(g);
 		
-		g.drawString("Iterations: "+mandelbrot.getIterations(), 30, 30);
+		g.drawString("Iterations: "+mandelbrot.getIterations()+"\nFPS:" + this.getFPS(), 30, 50);
 	}
 	
 }

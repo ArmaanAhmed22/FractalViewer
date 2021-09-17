@@ -1,8 +1,11 @@
 package mandelbrot.program;
 
 import java.awt.Component;
+
 import java.awt.Dimension;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.image.BufferStrategy;
 import java.awt.image.BufferedImage;
 import java.util.EventListener;
@@ -15,6 +18,8 @@ import mandelbrot.events.handlers.EventHandlerManager;
 
 public abstract class Program {
 	
+	private final static RenderingHints RENDERING_HINTS = new RenderingHints(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+	
 	private final int fps;
 	private final int ups;
 	private long time;
@@ -25,6 +30,7 @@ public abstract class Program {
 	private ScreenImage screen;
 	
 	protected EventHandlerManager ehm;
+	
 	
 	private int realFPS = 0;
 	
@@ -87,6 +93,7 @@ public abstract class Program {
 		getScreenImage().fill(0, 0, 0);
 		
 		onRender(g);
+		((Graphics2D)g).setRenderingHints(RENDERING_HINTS);
 		bs.show();
 	}
 	
@@ -100,15 +107,15 @@ public abstract class Program {
 		var curFPS = 0;
 		long fpsTime = 0;
 		
+		var FPSAndUPSTimer = System.currentTimeMillis();
+		
 		while (isRunning) {
 			var delta = System.currentTimeMillis() - curTime;
 			deltaTimeRender+=delta;
 			deltaTimeUpdate+=delta;
-			fpsTime+=delta;
 			
 			while (deltaTimeUpdate > upsInv1000) {
 				onUpdate();
-				time+=1;
 				deltaTimeUpdate-=upsInv1000;
 			}
 			
@@ -117,12 +124,13 @@ public abstract class Program {
 				curFPS+=1;
 				deltaTimeRender = 0;
 			}
-			
-			if (curFPS >= fps) {
-				realFPS = (int) (curFPS / (fpsTime / 1000d));
+			curTime = System.currentTimeMillis();
+			if (curTime-FPSAndUPSTimer >= 1000) {
+				realFPS = curFPS;
 				curFPS=0;
+				FPSAndUPSTimer=curTime;
 			}
-			
+			time+=1;
 			try {
 				Thread.sleep((long) (upsInv1000 - deltaTimeRender));
 			} catch (InterruptedException e) {
@@ -155,6 +163,10 @@ public abstract class Program {
 	
 	public final long getTime() {
 		return time;
+	}
+	
+	public final int getFPS() {
+		return realFPS;
 	}
 
 }

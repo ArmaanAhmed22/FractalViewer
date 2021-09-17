@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Queue;
 import java.util.function.Consumer;
 
+import javax.swing.JFrame;
+
 import mandelbrot.events.Event;
 import mandelbrot.events.Event.EventType;
 
@@ -49,7 +51,7 @@ public class EventHandlerManager {
 		var methodNames = new ArrayList<String>(EventHandler.eventListenerTypes);
 		methodNames.replaceAll((s) -> "add"+s);
 		
-		for (Method method : Component.class.getMethods()) {
+		for (Method method : JFrame.class.getMethods()) {
 			if (!methodNames.contains(method.getName()))
 				continue;
 			if (!(method.getParameterCount() == 1))
@@ -57,6 +59,7 @@ public class EventHandlerManager {
 			if (method.getParameters()[0].getType().isAssignableFrom(ehClass)) {
 				return method;
 			}
+
 		}
 		throw new ClassNotFoundException("Could not find class");
 	}
